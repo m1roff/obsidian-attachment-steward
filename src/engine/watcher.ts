@@ -1,6 +1,7 @@
 import { App, CachedMetadata, EventRef, TAbstractFile, TFile } from "obsidian";
 import { effectiveTemplates, shouldManage } from "../core/filters";
 import { referencedAttachments } from "../core/links";
+import { findReferencingNote } from "../core/ownership";
 import { parentPath } from "../core/paths";
 import { recognizeAppliedName } from "../core/recognize";
 import { log } from "../log";
@@ -8,6 +9,7 @@ import { Store } from "../store/store";
 import { AttachmentRecord } from "../store/types";
 import { handleNoteRename } from "./noteRename";
 import { cleanupIfEmpty, InternalMoveTracker, processAttachment } from "./organizer";
+import { handleOwnerDelete, takeOverFromStaleOwner } from "./ownership";
 
 const PROCESS_DEBOUNCE_MS = 200;
 
@@ -143,7 +145,8 @@ export class Watcher {
   private onMetadataChanged = (note: TFile, _data: string, cache: CachedMetadata): void => {
     if (note.extension !== "md") return;
     for (const attachPath of referencedAttachments(this.app, note, cache, this.store.settings)) {
-      if (this.pending.has(attachPath) || this.isOwnerlessOrphan(attachPath)) {
+      // Third case: embed cut from the owner note and pasted here.
+      if (this.pending.has(attachPath) || this.isOwnerlessOrphan(attachPath) || takeOverFromStaleOwner(this.app, this.store, attachPath, note.path)) {
         this.claim(attachPath, note.path);
       }
     }
@@ -176,7 +179,9 @@ export class Watcher {
   };
 
   private onDelete = (file: TAbstractFile): void => {
-    if (!(file instanceof TFile) || !this.store.has(file.path)) return;
+    if (!(file instanceof TFile)) return;
+    handleOwnerDelete(this.app, this.store, file.path);
+    if (!this.store.has(file.path)) return;
     const path = file.path;
     // Don't drop the record immediately: a matching `create` in the same
     // folder within the grace window means this was a replace, not a real
@@ -193,11 +198,7 @@ export class Watcher {
   };
 
   private findOwner(attachPath: string): string | null {
-    const resolved = this.app.metadataCache.resolvedLinks;
-    for (const sourcePath in resolved) {
-      if (resolved[sourcePath][attachPath]) return sourcePath;
-    }
-    return null;
+    return findReferencingNote(this.app.metadataCache.resolvedLinks, attachPath);
   }
 
   private claim(attachPath: string, notePath: string): void {

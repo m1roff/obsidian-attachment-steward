@@ -125,10 +125,68 @@ describe("adopt (active note / vault / folder)", () => {
       source: "created",
     });
     app.metadataCache.setFileCache(other, { embeds: [{ link: "shared.jpg" }] });
+    app.metadataCache.resolvedLinks = { "Owner.md": { "shared.jpg": 1 }, "Other.md": { "shared.jpg": 1 } };
 
     await adoptFolderCommand(app, store, internalMoves)(app.vault.seedFolder(""));
     expect(Notice.log.at(-1)).toContain("No unmanaged attachments");
     expect(store.get("shared.jpg")?.notePath).toBe("Owner.md"); // unchanged
+  });
+
+  it("adopts an attachment whose recorded owner note was deleted", async () => {
+    const { app, store, internalMoves } = setup();
+    const other = app.vault.seedFile("Other.md");
+    app.vault.seedFile("shared.jpg");
+    store.set("shared.jpg", {
+      v: 1,
+      originalName: "shared",
+      extension: "jpg",
+      importedAt: 0,
+      notePath: "Deleted.md",
+      md5: null,
+      md5For: null,
+      dedupe: 0,
+      applied: null,
+      managed: true,
+      source: "created",
+    });
+    app.metadataCache.setFileCache(other, { embeds: [{ link: "shared.jpg" }] });
+
+    const promise = adoptVaultCommand(app, store, internalMoves)();
+    await vi.waitFor(() => expect(Modal.instances.length).toBe(1));
+    await apply();
+    await promise;
+
+    expect(store.pathsForNote("Other.md").length).toBe(1);
+    expect(store.pathsForNote("Deleted.md")).toEqual([]);
+  });
+
+  it("adopts an attachment whose owner still exists but no longer links to it", async () => {
+    const { app, store, internalMoves } = setup();
+    app.vault.seedFile("Owner.md");
+    const other = app.vault.seedFile("Other.md");
+    app.vault.seedFile("shared.jpg");
+    store.set("shared.jpg", {
+      v: 1,
+      originalName: "shared",
+      extension: "jpg",
+      importedAt: 0,
+      notePath: "Owner.md",
+      md5: null,
+      md5For: null,
+      dedupe: 0,
+      applied: null,
+      managed: true,
+      source: "created",
+    });
+    app.metadataCache.setFileCache(other, { embeds: [{ link: "shared.jpg" }] });
+    app.metadataCache.resolvedLinks = { "Other.md": { "shared.jpg": 1 } };
+
+    const promise = adoptVaultCommand(app, store, internalMoves)();
+    await vi.waitFor(() => expect(Modal.instances.length).toBe(1));
+    await apply();
+    await promise;
+
+    expect(store.pathsForNote("Other.md").length).toBe(1);
   });
 
   it("adoptVaultCommand scans every markdown note in the vault, not just the active one", async () => {

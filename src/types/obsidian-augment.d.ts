@@ -9,3 +9,13 @@ declare module "obsidian" {
     setSubmenu(): Menu;
   }
 }
+
+declare module "obsidian" {
+  interface Vault {
+    /**
+     * Not in the public .d.ts, but present at runtime and widely used by plugins.
+     * We only read "trashOption": "system" | "local" | "none" (none = permanent delete).
+     */
+    getConfig(key: string): unknown;
+  }
+}

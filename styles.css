@@ -28,6 +28,29 @@
   color: var(--text-normal);
 }
 
+.attachment-organizer-preview-modal .ao-unlinked-tree {
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-group > label {
+  font-weight: var(--font-medium);
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-children {
+  margin-left: 18px;
+}
+
 .attachment-organizer-settings .ao-extension-override-row,
 .attachment-organizer-settings .ao-excluded-folder-row {
   padding: 6px 0;
@@ -86,4 +109,55 @@
   font-size: var(--font-ui-smaller);
   color: var(--text-error);
   white-space: nowrap;
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-toolbar,
+.attachment-organizer-preview-modal .ao-unlinked-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 8px 0;
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-row {
+  display: flex;
+  align-items: center;
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-toggle {
+  display: inline-block;
+  width: 16px;
+  flex: none;
+  text-align: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-children.ao-collapsed {
+  display: none;
+}
+
+/* Partially selected group: show a dash so it is visible even when collapsed. */
+.attachment-organizer-preview-modal .ao-unlinked-row input[type="checkbox"]:indeterminate {
+  position: relative;
+  background-color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+.attachment-organizer-preview-modal .ao-unlinked-row input[type="checkbox"]:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background-color: var(--text-on-accent);
+}
+
+.attachment-organizer-preview-modal .ao-danger-note {
+  color: var(--text-error);
+  font-weight: var(--font-medium);
+  margin: 8px 0;
 }

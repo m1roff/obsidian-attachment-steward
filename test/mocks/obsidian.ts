@@ -146,6 +146,11 @@ class FakeAdapter {
 export class FakeVault {
   configDir = ".obsidian";
   readonly adapter: FakeAdapter;
+  config: Record<string, unknown> = {};
+
+  getConfig(key: string): unknown {
+    return this.config[key];
+  }
 
   private readonly files = new Map<string, TFile>();
   private readonly folders = new Map<string, TFolder>();
@@ -219,6 +224,10 @@ export class FakeVault {
   getAbstractFileByPath(path: string): TAbstractFile | null {
     const p = normalizePath(path);
     return this.files.get(p) ?? this.folders.get(p) ?? null;
+  }
+
+  getFiles(): TFile[] {
+    return [...this.files.values()];
   }
 
   getMarkdownFiles(): TFile[] {
@@ -335,6 +344,13 @@ export class FakeFileManager {
     return this.vault.renameFile(file, newPath);
   }
 
+  /** Records what was trashed and removes it from the vault, firing 'delete' like the real one. */
+  trashed: string[] = [];
+  async trashFile(file: TAbstractFile): Promise<void> {
+    this.trashed.push(file.path);
+    this.vault.simulateDelete(file.path);
+  }
+
   /** Overridable per test; default mirrors "same folder as the owning note". */
   getAvailablePathForAttachment = async (filename: string, ownerPath: string): Promise<string> => {
     const parent = ownerPath ? parentOf(ownerPath) : "";
@@ -420,6 +436,10 @@ export class FakeEl {
   text = "";
   children: FakeEl[] = [];
   attr: Record<string, unknown> = {};
+  checked = false;
+  indeterminate = false;
+  disabled = false;
+  private readonly handlers = new Map<string, Array<() => void>>();
 
   constructor(tag = "div") {
     this.tag = tag;
@@ -427,6 +447,12 @@ export class FakeEl {
 
   addClass(...cls: string[]): this {
     this.cls.push(...cls);
+    return this;
+  }
+
+  toggleClass(cls: string, on: boolean): this {
+    this.cls = this.cls.filter((c) => c !== cls);
+    if (on) this.cls.push(cls);
     return this;
   }
 
@@ -440,7 +466,16 @@ export class FakeEl {
     return this;
   }
 
-  createEl(tag: string, opts?: { text?: string; cls?: string | string[]; attr?: Record<string, unknown> }): FakeEl {
+  addEventListener(type: string, fn: () => void): void {
+    this.handlers.set(type, [...(this.handlers.get(type) ?? []), fn]);
+  }
+
+  /** Test helper - fires handlers registered via addEventListener. */
+  fire(type: string): void {
+    for (const fn of this.handlers.get(type) ?? []) fn();
+  }
+
+  createEl(tag: string, opts?: { text?: string; cls?: string | string[]; attr?: Record<string, unknown>; type?: string }): FakeEl {
     const el = new FakeEl(tag);
     if (opts?.text) el.text = opts.text;
     if (opts?.cls) el.addClass(...(Array.isArray(opts.cls) ? opts.cls : [opts.cls]));
@@ -468,6 +503,8 @@ export class FakeEl {
 export class ButtonComponent {
   buttonText = "";
   isCta = false;
+  disabled = false;
+  buttonEl = new FakeEl("button");
   onClickFn: (() => void | Promise<void>) | null = null;
   extraSettingsEl = new FakeEl();
 
@@ -478,6 +515,11 @@ export class ButtonComponent {
 
   setCta(): this {
     this.isCta = true;
+    return this;
+  }
+
+  setDisabled(disabled: boolean): this {
+    this.disabled = disabled;
     return this;
   }
 
@@ -607,6 +649,7 @@ export class Setting {
 export class Modal {
   contentEl = new FakeEl("div");
   app: App;
+  shouldRestoreSelection = true;
 
   /** Test hook — every instantiated modal (of any subclass) is pushed here so tests can grab the one a command just opened. Reset with `Modal.instances.length = 0` in `beforeEach`. */
   static instances: Modal[] = [];

@@ -1,9 +1,9 @@
 import { Platform, Plugin, TFolder } from "obsidian";
 import { adoptActiveNoteCommand, adoptFolderCommand, adoptVaultCommand } from "./commands/adopt";
-import { findOrphansCommand } from "./commands/findOrphans";
 import { pruneCommand, pruneFolderCommand } from "./commands/prune";
 import { reapplyActiveNoteCommand, reapplyAllCommand, reapplyFolderCommand } from "./commands/reapply";
 import { repairStampedNamesCommand } from "./commands/repair";
+import { unlinkedActiveNoteCommand, unlinkedFolderCommand, unlinkedVaultCommand } from "./commands/unlinked";
 import { addExcludedFolder, isFolderListed, removeExcludedFolder, renameExcludedFolders } from "./core/exclusions";
 import { Watcher } from "./engine/watcher";
 import { configureLogging, flushLog, log } from "./log";
@@ -19,7 +19,9 @@ interface Commands {
   adoptFolder: (folder: TFolder) => Promise<void>;
   prune: () => void;
   pruneFolder: (folder: TFolder) => void;
-  findOrphansFolder: (folder: TFolder) => void;
+  unlinkedActiveNote: () => void;
+  unlinkedVault: () => void;
+  unlinkedFolder: (folder: TFolder) => void;
   repairStampedNames: () => Promise<void>;
 }
 
@@ -55,7 +57,9 @@ export default class AttachmentOrganizerPlugin extends Plugin {
       adoptFolder: adoptFolderCommand(this.app, this.store, this.watcher.internalMoves),
       prune: pruneCommand(this.app, this.store),
       pruneFolder: pruneFolderCommand(this.app, this.store),
-      findOrphansFolder: findOrphansCommand(this.app, this.store.settings),
+      unlinkedActiveNote: unlinkedActiveNoteCommand(this.app, this.store),
+      unlinkedVault: unlinkedVaultCommand(this.app, this.store),
+      unlinkedFolder: unlinkedFolderCommand(this.app, this.store),
       repairStampedNames: repairStampedNamesCommand(this.app, this.store, this.watcher.internalMoves),
     };
 
@@ -78,6 +82,16 @@ export default class AttachmentOrganizerPlugin extends Plugin {
       id: "adopt-vault",
       name: "Adopt unmanaged attachments in whole vault",
       callback: this.commands.adoptVault,
+    });
+    this.addCommand({
+      id: "unlinked-active-note",
+      name: "Find unlinked attachments of active note",
+      callback: this.commands.unlinkedActiveNote,
+    });
+    this.addCommand({
+      id: "unlinked-vault",
+      name: "Find unlinked attachments in whole vault",
+      callback: this.commands.unlinkedVault,
     });
     this.addCommand({
       id: "prune-orphaned-records",
@@ -126,9 +140,9 @@ export default class AttachmentOrganizerPlugin extends Plugin {
             onClick: () => this.commands.pruneFolder(file),
           },
           {
-            title: "Find attachments with no links",
+            title: "Find unlinked attachments",
             icon: "search",
-            onClick: () => this.commands.findOrphansFolder(file),
+            onClick: () => this.commands.unlinkedFolder(file),
           },
         ];
         const exclusionItem = {

@@ -1,9 +1,11 @@
 import { App, TFile, TFolder } from "obsidian";
 import { shouldManage } from "../core/filters";
 import { ensureRecordHash } from "../core/hash";
+import { referencedAttachments } from "../core/links";
 import { resolveDestination } from "../core/resolve";
 import { notesUnderFolder } from "../core/scope";
 import { InternalMoveTracker, processAttachment } from "../engine/organizer";
+import { claimedAttachmentsOfNote, reassignStaleOwner } from "../engine/ownership";
 import { log } from "../log";
 import { Store } from "../store/store";
 import { DiffItem, PreviewModal, PreviewSummary } from "../ui/previewModal";
@@ -69,12 +71,21 @@ export async function reapplyRules(app: App, store: Store, paths: string[], inte
     return;
   }
 
+  for (const path of paths) reassignStaleOwner(app, store, path);
+
   const { summary, movable } = await buildSummary(app, store, paths);
   const confirmed = await new PreviewModal(app, titleText, summary).waitForChoice();
   if (!confirmed) return;
 
   const moved = await applyMoves(app, store, movable, internalMoves);
   log.notice(`Reapplied rules: ${moved} moved, ${summary.skipped} already correct.`);
+}
+
+/** Owned attachments of a note plus ones just pasted into it from another note. */
+function attachmentsOfNote(app: App, store: Store, note: TFile): string[] {
+  const cache = app.metadataCache.getFileCache(note);
+  const referenced = cache ? referencedAttachments(app, note, cache, store.settings) : new Set<string>();
+  return claimedAttachmentsOfNote(app, store, note, referenced);
 }
 
 export function reapplyAllCommand(app: App, store: Store, internalMoves: InternalMoveTracker): () => Promise<void> {
@@ -95,7 +106,7 @@ export function reapplyActiveNoteCommand(app: App, store: Store, internalMoves: 
       log.notice("No active note open.");
       return;
     }
-    await reapplyRules(app, store, store.pathsForNote(note.path), internalMoves, `Reapply rules for "${note.basename}"`);
+    await reapplyRules(app, store, attachmentsOfNote(app, store, note), internalMoves, `Reapply rules for "${note.basename}"`);
   };
 }
 
@@ -103,7 +114,7 @@ export function reapplyFolderCommand(app: App, store: Store, internalMoves: Inte
   return async (folder) => {
     const paths = new Set<string>();
     for (const note of notesUnderFolder(app, folder)) {
-      for (const path of store.pathsForNote(note.path)) paths.add(path);
+      for (const path of attachmentsOfNote(app, store, note)) paths.add(path);
     }
     await reapplyRules(app, store, [...paths], internalMoves, `Reapply rules for "${folder.path || "/"}"`);
   };

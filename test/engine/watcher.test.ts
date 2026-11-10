@@ -291,3 +291,62 @@ describe("Watcher — onDelete / claimReplacement", () => {
     expect(rec?.source).toBe("created"); // a fresh record, not a carried-over replacement
   });
 });
+
+describe("Watcher - embed cut from one note and pasted into another", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2024, 0, 1));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function track(store: Store, notePath: string) {
+    store.set("f.pdf", {
+      v: 1, originalName: "f", extension: "pdf", importedAt: Date.UTC(2024, 0, 1), notePath, md5: null, md5For: null, dedupe: 0, applied: null, managed: true, source: "created",
+    });
+  }
+
+  it("moves the attachment to the new note once the old owner no longer links to it", async () => {
+    const { app, store } = setup();
+    app.vault.seedFile("A.md");
+    const b = app.vault.seedFile("Folder/B.md");
+    app.vault.seedFile("f.pdf");
+    track(store, "A.md");
+    app.metadataCache.resolvedLinks = { "A.md": {} }; // embed was cut from A
+
+    app.metadataCache.trigger(b, "", { embeds: [{ link: "f.pdf" }] });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(store.get("Folder/_sources/_attachments_B/2024-01-01-f.pdf")?.notePath).toBe("Folder/B.md");
+    expect(store.has("f.pdf")).toBe(false);
+  });
+
+  it("keeps the original owner when it still links to the attachment (plain copy, not cut)", async () => {
+    const { app, store } = setup();
+    app.vault.seedFile("A.md");
+    const b = app.vault.seedFile("Folder/B.md");
+    app.vault.seedFile("f.pdf");
+    track(store, "A.md");
+    app.metadataCache.resolvedLinks = { "A.md": { "f.pdf": 1 } };
+
+    app.metadataCache.trigger(b, "", { embeds: [{ link: "f.pdf" }] });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(store.get("f.pdf")?.notePath).toBe("A.md");
+  });
+});
+
+describe("Watcher - owner note deletion", () => {
+  it("re-owns attachments to another linking note when their owner note is deleted", () => {
+    const { app, store } = setup();
+    app.vault.seedFile("A.md");
+    app.vault.seedFile("B.md");
+    app.vault.seedFile("f.pdf");
+    app.metadataCache.resolvedLinks = { "A.md": { "f.pdf": 1 }, "B.md": { "f.pdf": 1 } };
+    store.set("f.pdf", {
+      v: 1, originalName: "f", extension: "pdf", importedAt: 0, notePath: "A.md", md5: null, md5For: null, dedupe: 0, applied: null, managed: true, source: "created",
+    });
+
+    app.vault.simulateDelete("A.md");
+    expect(store.get("f.pdf")?.notePath).toBe("B.md");
+  });
+});

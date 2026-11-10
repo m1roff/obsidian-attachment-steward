@@ -181,3 +181,31 @@ describe("reapplyActiveNoteCommand / reapplyFolderCommand", () => {
     expect(outside.path).toBe("b.jpg");
   });
 });
+
+describe("reapplyActiveNoteCommand - embed cut from A and pasted into B while the watcher missed it", () => {
+  beforeEach(() => {
+    Notice.log = [];
+    Modal.instances.length = 0;
+    Setting.instances.length = 0;
+  });
+
+  it("still picks up the attachment still owned by A and moves it next to B", async () => {
+    const { app, store, internalMoves } = setup();
+    app.vault.seedFile("TestMove/A note.md");
+    const b = app.vault.seedFile("TestMove/B note.md");
+    app.vault.seedFile("TestMove/f.jpg");
+    store.set("TestMove/f.jpg", record({ notePath: "TestMove/A note.md" }));
+    app.metadataCache.resolvedLinks = { "TestMove/A note.md": {}, "TestMove/B note.md": { "TestMove/f.jpg": 1 } };
+    app.metadataCache.setFileCache(b, { embeds: [{ link: "TestMove/f.jpg" }] });
+    app.workspace.setActiveFile(b);
+
+    const promise = reapplyActiveNoteCommand(app, store, internalMoves)();
+    await vi.waitFor(() => expect(Modal.instances.length).toBe(1));
+    await modalButtons().apply();
+    await promise;
+
+    const moved = "TestMove/_sources/_attachments_B note/2024-01-01-Photo.jpg";
+    expect(app.vault.getAbstractFileByPath(moved)).not.toBeNull();
+    expect(store.get(moved)?.notePath).toBe("TestMove/B note.md");
+  });
+});

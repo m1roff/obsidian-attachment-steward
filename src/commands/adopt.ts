@@ -1,5 +1,6 @@
 import { App, TFile, TFolder } from "obsidian";
 import { referencedAttachments } from "../core/links";
+import { isOwnerStale } from "../core/ownership";
 import { notesUnderFolder } from "../core/scope";
 import { InternalMoveTracker } from "../engine/organizer";
 import { log } from "../log";
@@ -10,7 +11,8 @@ import { reapplyRules } from "./reapply";
 /**
  * Referenced attachments with no owning note yet - either never tracked at
  * all, or tracked (e.g. auto-claimed on creation, then left orphaned when no
- * note referenced it in time) but with `notePath` still null.
+ * note referenced it in time) but with `notePath` still null - plus ones
+ * whose recorded owner is stale (deleted, or no longer links to the file).
  */
 function collectAdoptable(app: App, store: Store, notes: TFile[]): Map<string, string> {
   const found = new Map<string, string>(); // attachPath -> notePath (first reference wins)
@@ -18,7 +20,8 @@ function collectAdoptable(app: App, store: Store, notes: TFile[]): Map<string, s
     const cache = app.metadataCache.getFileCache(note);
     if (!cache) continue;
     for (const attachPath of referencedAttachments(app, note, cache, store.settings)) {
-      if (store.get(attachPath)?.notePath) continue;
+      const owner = store.get(attachPath)?.notePath;
+      if (owner && !isOwnerStale(app, owner, attachPath)) continue;
       if (!found.has(attachPath)) found.set(attachPath, note.path);
     }
   }
