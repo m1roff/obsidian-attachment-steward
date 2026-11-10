@@ -81,7 +81,7 @@ export async function readLogFile(plugin: Plugin): Promise<string | null> {
 
 export const log = {
   debug(...args: unknown[]): void {
-    if (debugEnabled) console.log(PREFIX, ...args);
+    if (debugEnabled) console.debug(PREFIX, ...args);
     queue("DEBUG", args);
   },
   warn(...args: unknown[]): void {
