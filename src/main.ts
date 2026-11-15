@@ -32,6 +32,7 @@ export default class AttachmentOrganizerPlugin extends Plugin {
   private settingTab!: AttachmentOrganizerSettingTab;
 
   async onload(): Promise<void> {
+    const onloadStarted = performance.now();
     this.store = new Store(this);
     await this.store.load();
     configureLogging({
@@ -41,10 +42,14 @@ export default class AttachmentOrganizerPlugin extends Plugin {
       plugin: this,
     });
 
+    const stats = this.store.loadStats;
+    log.debug(`startup: store loaded in ${stats.totalMs} ms (shard files ${stats.shardFiles} read in ${stats.shardsMs} ms, ${stats.records} records)`);
+
     this.watcher = new Watcher(this.app, this.store);
     // 'create' fires for every pre-existing file on vault load too — only
     // start reacting once the initial layout (and initial file flood) settles.
     this.app.workspace.onLayoutReady(() => {
+      log.debug(`startup: layout ready ${Math.round(performance.now() - onloadStarted)} ms after onload began`);
       this.watcher.register((ref) => this.registerEvent(ref));
     });
 

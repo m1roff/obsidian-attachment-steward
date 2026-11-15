@@ -51,9 +51,13 @@ export class Store {
   private saveTimer: number | null = null;
   private readonly dirtyShards = new Set<string | null>(); // notePath, or null for the orphans bucket
 
+  /** How long the last load() took and what it read, for the startup debug log. */
+  loadStats = { totalMs: 0, shardsMs: 0, shardFiles: 0, records: 0 };
+
   constructor(private readonly plugin: Plugin) {}
 
   async load(): Promise<void> {
+    const started = performance.now();
     const raw = (await this.plugin.loadData()) as (Partial<PluginData> & LegacyMonolithicData) | null;
     const rawSettings = raw?.settings as (Partial<Settings> & LegacyExclusionFields) | undefined;
     const migratedExcludedFolders = migrateExcludedFolders(rawSettings);
@@ -66,6 +70,7 @@ export class Store {
       },
       attachments: await this.loadShards(),
     };
+    this.loadStats.records = Object.keys(this.data.attachments).length;
 
     // One-time upgrade from pre-v0.3 data.json, which kept every record
     // inline. Shard-sourced records win on conflict — they're the newer format.
@@ -80,6 +85,7 @@ export class Store {
 
     this.rebuildIndices();
     if (this.dirtyShards.size > 0) await this.saveNow();
+    this.loadStats.totalMs = Math.round(performance.now() - started);
   }
 
   get settings(): Settings {
@@ -92,7 +98,18 @@ export class Store {
     const dir = `${pluginDataDir(this.plugin)}/${RECORDS_DIR}`;
     if (!(await adapter.exists(dir))) return out;
 
+    const shardsStarted = performance.now();
     const { files } = await adapter.list(dir);
+    this.loadStats.shardFiles = files.length;
+    try {
+      return await this.readShards(files, out);
+    } finally {
+      this.loadStats.shardsMs = Math.round(performance.now() - shardsStarted);
+    }
+  }
+
+  private async readShards(files: string[], out: Record<string, AttachmentRecord>): Promise<Record<string, AttachmentRecord>> {
+    const adapter = this.plugin.app.vault.adapter;
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
       try {
