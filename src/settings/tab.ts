@@ -35,6 +35,13 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
 
   // Imperative display() is deprecated since Obsidian 1.13.0 in favor of a
   // declarative getSettingDefinitions() API — not migrated yet, see ROADMAP.md.
+  /** Re-renders the tab in place, keeping the scroll position (a plain display() jumps back to the top). */
+  private redisplay(): void {
+    const top = this.containerEl.scrollTop;
+    this.display();
+    this.containerEl.scrollTop = top;
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -90,7 +97,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       btn.setButtonText("Add excluded folder").onClick(() => {
         settings.excludedFolders.push({ path: "", includeSubpaths: true });
         save();
-        this.display();
+        this.redisplay();
       })
     );
 
@@ -111,7 +118,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
         dd.setValue(settings.rootMode).onChange((value) => {
           settings.rootMode = value as RootMode;
           save();
-          this.display();
+          this.redisplay();
         });
       });
 
@@ -223,7 +230,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           settings.debugLogging = v;
           if (!v) settings.debugLogToFile = false;
           save();
-          this.display();
+          this.redisplay();
         })
       );
 
@@ -237,7 +244,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           t.setValue(settings.debugLogToFile).onChange((v) => {
             settings.debugLogToFile = v;
             save();
-            this.display();
+            this.redisplay();
           })
         );
 
@@ -275,7 +282,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           formatTemplate: settings.formatTemplate,
         });
         save();
-        this.display();
+        this.redisplay();
       })
     );
 
@@ -335,7 +342,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           entry.path = folder.path;
           text.setValue(folder.path);
           save();
-          this.display();
+          this.redisplay();
         });
       });
 
@@ -363,7 +370,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           .onClick(() => {
             excludedFolders.splice(index, 1);
             save();
-            this.display();
+            this.redisplay();
           });
         metaRow.appendChild(btn.extraSettingsEl);
       });
@@ -413,7 +420,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           .onClick(() => {
             overrides.splice(index, 1);
             save();
-            this.display();
+            this.redisplay();
           });
         metaRow.appendChild(btn.extraSettingsEl);
       });
